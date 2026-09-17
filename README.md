@@ -108,6 +108,18 @@ func main() {
 evaluated without flattening it to text first. The same goes for
 `Instructions` and for every criterion description.
 
+## Examples
+
+Four runnable programs under [`examples/`](examples), each with its own input
+data. Run one with `TYPESAFE_API_KEY=... go run ./examples/<name>`.
+
+| Example | What it does |
+| --- | --- |
+| [`ticket-triage`](examples/ticket-triage) | Routes a support ticket from one request, gating the branch on the category's confidence. |
+| [`composite-scoring`](examples/composite-scoring) | Rates a pull request description as four `Score` questions, normalised and weighted in Go. |
+| [`rerank`](examples/rerank) | Reorders a search shortlist by asking one `Noul` per candidate in a single request. |
+| [`function-calling`](examples/function-calling) | Maps a sentence onto a Go function and its closed-set arguments, refusing when confidence is low. |
+
 ## Answers
 
 `resp.Answers` is a map keyed by the question ids the request used. Read it

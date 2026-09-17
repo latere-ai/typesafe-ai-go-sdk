@@ -36,6 +36,13 @@ dependencies beyond the standard library.
   `Retry-After` up to a cap. Waiting respects the caller's context, and the
   request body is replayed on every attempt. `RetryPolicy` and the per-attempt
   timeout are configurable; the zero `RetryPolicy` turns retries off.
+- `examples/` holds four runnable programs, each carrying its own input data:
+  `ticket-triage` routes a support ticket from one request and gates the branch
+  on confidence, `composite-scoring` combines four rubrics into one weighted
+  number, `rerank` reorders a search shortlist with one question per candidate,
+  and `function-calling` maps a sentence onto a Go function and its arguments,
+  refusing to call anything when a judgement is unclear. Run one with
+  `TYPESAFE_API_KEY=... go run ./examples/<name>`.
 - The API key, the API root and the default model come from `TYPESAFE_API_KEY`,
   `TYPESAFE_BASE_URL` and `TYPESAFE_DEFAULT_MODEL`, each overridable with an
   option. A client is safe for concurrent use.
