@@ -1,0 +1,953 @@
+# SPDX-FileCopyrightText: 2026 Latere AI
+# SPDX-License-Identifier: Apache-2.0
+#
+# Unofficial OpenAPI description of the TypeSafe AI HTTP API. It is not
+# published by TypeSafe AI. It was derived from the public documentation at
+# https://docs.typesafe.ai (API reference, Python SDK reference, JavaScript SDK
+# reference) and from unauthenticated requests against https://api.typesafe.ai
+# made on 2026-09-17. Where the reference page, the SDK references, and the
+# observed responses disagree, the description follows the observed response
+# first, then the SDK references, then the reference page, and records the
+# disagreement in the affected `description`. Every statement that could not be
+# checked against a response or a documented type is marked "Unverified" in the
+# `description` of the schema, parameter, or response it applies to.
+
+openapi: 3.1.0
+
+info:
+  title: TypeSafe AI HTTP API
+  version: "2026-09-17"
+  summary: Evaluate a state against typed questions and receive structured answers.
+  description: |
+    The API exposes one evaluation endpoint and one model listing endpoint.
+
+    `POST /v1/systemone` takes a `state` (the content to evaluate), a `model`,
+    and a map of typed `questions`. It returns one answer per question under the
+    same keys, plus token usage. Three question types exist: `noul` (yes/no,
+    answered with a probability), `choice` (one option out of a named set), and
+    `score` (a probability-weighted position on an ordered rubric).
+
+    `GET /v1/models` returns the model names the calling account may send in the
+    `model` field.
+
+    Authentication is a bearer token in the `Authorization` header. A request
+    with no `Authorization` header is rejected with 403, and a request with a
+    token the server does not accept is rejected with 401. Both carry the same
+    JSON error envelope. Every response observed so far carries an
+    `x-typesafe-request-id` header.
+
+    Version: this document has no upstream version to track. The value in
+    `info.version` is the date the description was derived.
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+
+externalDocs:
+  description: TypeSafe AI API reference
+  url: https://docs.typesafe.ai/api
+
+servers:
+  - url: https://api.typesafe.ai
+    description: |
+      Production API root. The official SDKs use this value as their default and
+      allow it to be overridden with the `TYPESAFE_BASE_URL` environment
+      variable. No other server is documented.
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: System One
+    description: Evaluation of a state against typed questions.
+    externalDocs:
+      url: https://docs.typesafe.ai/api
+  - name: Models
+    description: The models an account may select in the `model` request field.
+    externalDocs:
+      url: https://docs.typesafe.ai/models
+
+paths:
+  /v1/systemone:
+    post:
+      tags:
+        - System One
+      operationId: systemOne
+      summary: Evaluate a state against typed questions
+      description: |
+        Evaluates one `state` against one or more typed questions and returns one
+        answer per question, keyed by the same ids that were sent. All questions
+        in a request see the same state and are evaluated independently.
+
+        The endpoint accepts POST only. A GET returns 405 with an `allow: POST`
+        response header.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SystemOneRequest'
+            examples:
+              noul:
+                summary: A single noul question, no criteria
+                description: Example request from the API reference page.
+                value:
+                  state: "Help! My payouts have been failing for 3 days."
+                  model: jev-latest
+                  questions:
+                    is_urgent:
+                      type: noul
+                      instructions: "Does this convey urgency?"
+              noulWithCriteria:
+                summary: A noul question with outcome descriptions
+                description: Noul example request from the API reference page.
+                value:
+                  state: "Help! My payouts have been failing for 3 days."
+                  model: jev-latest
+                  questions:
+                    is_urgent:
+                      type: noul
+                      instructions: "Does this convey urgency?"
+                      criteria:
+                        "true": "Explicitly time-sensitive"
+                        "false": "No urgency expressed"
+              choice:
+                summary: A choice question with three options
+                description: Choice example request from the API reference page.
+                value:
+                  state: "Help! My payouts have been failing for 3 days."
+                  model: jev-latest
+                  questions:
+                    department:
+                      type: choice
+                      instructions: "Which team should handle this?"
+                      criteria:
+                        billing: "Payments, invoicing, refunds"
+                        technical: "Bugs, outages, integrations"
+                        sales: "Pricing, upgrades, new accounts"
+              score:
+                summary: A score question with three levels
+                description: Score example request from the API reference page.
+                value:
+                  state: "Help! My payouts have been failing for 3 days."
+                  model: jev-latest
+                  questions:
+                    frustration:
+                      type: score
+                      instructions: "How frustrated is the customer?"
+                      criteria:
+                        - "Calm"
+                        - "Frustrated"
+                        - "Very angry"
+      responses:
+        '200':
+          description: One answer per question, keyed by the ids sent in `questions`.
+          headers:
+            x-typesafe-request-id:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemOneResponse'
+              examples:
+                noul:
+                  summary: A noul answer
+                  description: |
+                    Example response from the API reference page. The page prints
+                    this same value twice, once for the response body section and
+                    once for the noul answer section.
+                  value:
+                    model: jev-latest
+                    answers:
+                      is_urgent:
+                        type: noul
+                        noul: 0.92
+                    usage:
+                      input_tokens: 312
+                      output_tokens: 48
+                choice:
+                  summary: A choice answer
+                  description: Choice example response from the API reference page.
+                  value:
+                    model: jev-latest
+                    answers:
+                      department:
+                        type: choice
+                        choice: technical
+                        probabilities:
+                          billing: 0.08
+                          technical: 0.85
+                          sales: 0.07
+                        confidence: 0.82
+                    usage:
+                      input_tokens: 312
+                      output_tokens: 48
+                score:
+                  summary: A score answer
+                  description: Score example response from the API reference page.
+                  value:
+                    model: jev-latest
+                    answers:
+                      frustration:
+                        type: score
+                        score: 1.6
+                        legend:
+                          "0": "Calm"
+                          "1": "Frustrated"
+                          "2": "Very angry"
+                        probabilities:
+                          "0": 0.05
+                          "1": 0.3
+                          "2": 0.65
+                        confidence: 0.78
+                    usage:
+                      input_tokens: 312
+                      output_tokens: 48
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '529':
+          $ref: '#/components/responses/Overloaded'
+
+  /v1/models:
+    get:
+      tags:
+        - Models
+      operationId: listModels
+      summary: List the models available to the account
+      description: |
+        Returns the model names the account may send in the `model` field, each
+        with a description and a release date. The list contains the aliases
+        `jev-latest` and `jev-preview`. Versioned ids such as `jev-1.13.0` are
+        accepted by the `model` field whether or not they appear in the list.
+
+        Unverified: the success body has not been observed, because no API key
+        was available. Its shape here is taken from the field list on
+        https://docs.typesafe.ai/models and from the `ListModelsResponse` and
+        `ModelMetadata` types in the Python SDK reference. The route itself is
+        confirmed: an unauthenticated GET returns the authentication error
+        envelope rather than 404.
+      responses:
+        '200':
+          description: The models available to the account.
+          headers:
+            x-typesafe-request-id:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListModelsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '529':
+          $ref: '#/components/responses/Overloaded'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        An API key sent as `Authorization: Bearer <API_KEY>`. The official SDKs
+        read it from the `TYPESAFE_API_KEY` environment variable when it is not
+        passed explicitly.
+
+        A request with no `Authorization` header is answered with 403 and a
+        request with a rejected key is answered with 401. Both bodies use the
+        `error_type` value `authentication_error`.
+
+  headers:
+    RequestId:
+      description: |
+        Server-assigned identifier for the request, of the observed form
+        `req_` followed by 32 lowercase hexadecimal characters. Both official
+        SDKs expose it on responses and on HTTP errors. Observed on every
+        response, including 401, 403, 404 and 405.
+      schema:
+        type: string
+        examples:
+          - req_01a0af5b31087f95826953401b685d91
+    RetryAfter:
+      description: |
+        The wait the server asks for before the request is retried, in seconds or
+        as an HTTP date.
+
+        Unverified: the header is named in the SDK references, which state that
+        `Retry-After` and `retry-after-ms` are honoured by the default retry
+        policy, and the models page states the SDKs honour `retry-after` "when
+        the response carries one". No 429 or 529 response was observed, so
+        neither the presence of the header nor its units were confirmed.
+      required: false
+      schema:
+        type: string
+        examples:
+          - "2"
+    RetryAfterMs:
+      description: |
+        The wait the server asks for before the request is retried, in
+        milliseconds.
+
+        Unverified: named in the SDK references alongside `Retry-After`, with no
+        observed response carrying it. The JavaScript SDK caps the honoured
+        value at `maxRetryAfterMs`, 60000 by default, and falls back to its own
+        backoff for longer waits.
+      required: false
+      schema:
+        type: string
+        examples:
+          - "2000"
+    Allow:
+      description: The methods the path accepts. Observed as `POST` on a GET to `/v1/systemone`.
+      schema:
+        type: string
+        examples:
+          - POST
+
+  schemas:
+    Content:
+      description: |
+        Text, a JSON object, or a JSON array. This is the shape the API accepts
+        for `state`, for `instructions`, and for each criterion description. The
+        Python SDK calls it `JSONContent` and the JavaScript SDK calls it
+        `EntryType`. Objects and arrays may nest freely and may contain null
+        values inside.
+      type:
+        - string
+        - object
+        - array
+
+    ContentOrNull:
+      description: |
+        A `Content` value, or null to leave the entry undescribed. Used for the
+        values of a choice question's `criteria` map and for the two properties
+        of a noul question's `criteria` object.
+      type:
+        - string
+        - object
+        - array
+        - "null"
+
+    State:
+      description: |
+        The content to evaluate. A plain string for text, or an object or array
+        for structured data such as chat logs, records, or application state.
+        One request evaluates one state against every question it carries.
+
+        The model accepts text only. Images, audio and video are not supported.
+
+        Unverified: the JavaScript SDK types `state` as nullable, while the
+        Python SDK states it cannot be null and the reference marks it required.
+        Null is not permitted here, following the reference and the Python SDK.
+        The reference also does not constrain the element type of an array
+        state, although the State concept page describes an array state as "an
+        array of text values", so no item constraint is applied.
+      type:
+        - string
+        - object
+        - array
+      examples:
+        - "Help! My payouts have been failing for 3 days."
+        - message: "My card was charged twice."
+          order_id: A-104
+
+    NoulCriteria:
+      description: |
+        Descriptions of what a yes and a no mean for a noul question. Both
+        properties are optional.
+
+        The reference types both properties as strings. Both SDKs type them as
+        text, an object, or an array, and allow null for an undescribed outcome,
+        which is what this schema encodes.
+      type: object
+      properties:
+        "true":
+          allOf:
+            - $ref: '#/components/schemas/ContentOrNull'
+          description: What a yes, a value near 1, means.
+        "false":
+          allOf:
+            - $ref: '#/components/schemas/ContentOrNull'
+          description: What a no, a value near 0, means.
+      examples:
+        - "true": "Explicitly time-sensitive"
+          "false": "No urgency expressed"
+
+    Instructions:
+      description: |
+        The question to evaluate, as text, a JSON object, or an array.
+
+        Unverified: the reference marks `instructions` required on all three
+        question types, while both official SDKs type it as optional and
+        default it to absent. Server-side enforcement was not observed, because
+        no authenticated request could be made. It is encoded as optional here,
+        following the two SDK references. Every example on the reference page
+        sets it.
+      allOf:
+        - $ref: '#/components/schemas/Content'
+
+    NoulQuestion:
+      description: |
+        A yes/no question. The answer is the probability that the answer is yes.
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          const: noul
+        instructions:
+          $ref: '#/components/schemas/Instructions'
+        criteria:
+          description: Optional descriptions of what a yes and a no mean.
+          oneOf:
+            - $ref: '#/components/schemas/NoulCriteria'
+            - type: "null"
+
+    ChoiceQuestion:
+      description: |
+        A question that selects one option from a set defined by `criteria`. The
+        answer carries the selected option, the probability of every option, and
+        a confidence.
+      type: object
+      required:
+        - type
+        - criteria
+      properties:
+        type:
+          const: choice
+        instructions:
+          $ref: '#/components/schemas/Instructions'
+        criteria:
+          description: |
+            The available options, each mapped to a description of what it
+            covers. Use null for an option that needs no description. The keys
+            are the option labels, and the answer's `choice` and the keys of its
+            `probabilities` are drawn from them.
+
+            Unverified: no minimum or maximum option count is documented, so
+            none is encoded.
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ContentOrNull'
+
+    ScoreQuestion:
+      description: |
+        A question that rates the state against an ordered rubric. The answer is
+        a probability-weighted position across the levels, which can land between
+        them.
+      type: object
+      required:
+        - type
+        - criteria
+      properties:
+        type:
+          const: score
+        instructions:
+          $ref: '#/components/schemas/Instructions'
+        criteria:
+          description: |
+            The rubric levels in order, indexed from zero. The index of each
+            entry is the score it stands for, and the answer's `legend` maps
+            those indices back to these descriptions.
+
+            The reference and the JavaScript SDK both require at least two
+            levels, which is what `minItems` encodes. The Python SDK reference
+            describes the list as "nonempty" and its client raises only when the
+            list is empty, so a one-level question may reach the server through
+            that SDK.
+
+            Entries are not restricted to strings: both SDKs type each entry as
+            text, an object, or an array. Unverified: the JavaScript SDK also
+            permits null for an undescribed level, which the Python SDK does not,
+            so null is not permitted here.
+          type: array
+          minItems: 2
+          items:
+            $ref: '#/components/schemas/Content'
+
+    Question:
+      description: |
+        One typed question. The `type` field selects the shape.
+
+        Unverified: both SDKs describe question objects as carrying arbitrary
+        extra JSON fields, so unknown properties are not rejected here. Whether
+        the server ignores or rejects them was not observed.
+      oneOf:
+        - $ref: '#/components/schemas/NoulQuestion'
+        - $ref: '#/components/schemas/ChoiceQuestion'
+        - $ref: '#/components/schemas/ScoreQuestion'
+      discriminator:
+        propertyName: type
+        mapping:
+          noul: '#/components/schemas/NoulQuestion'
+          choice: '#/components/schemas/ChoiceQuestion'
+          score: '#/components/schemas/ScoreQuestion'
+
+    SystemOneRequest:
+      description: The body of a `POST /v1/systemone` request.
+      type: object
+      required:
+        - state
+        - model
+        - questions
+      properties:
+        state:
+          $ref: '#/components/schemas/State'
+        model:
+          description: |
+            The model that handles the request. Either a versioned id such as
+            `jev-1.13.0` or an alias such as `jev-latest` or `jev-preview`. The
+            official SDKs default it to `jev-latest` and allow that default to be
+            changed with the `TYPESAFE_DEFAULT_MODEL` environment variable.
+          type: string
+          examples:
+            - jev-latest
+            - jev-1.13.0
+        questions:
+          description: |
+            The questions to answer, keyed by ids chosen by the caller. The same
+            ids key the answers in the response. A question id is not sent to the
+            underlying model and takes no part in inference.
+
+            Unverified: both SDKs require a nonempty map and the Python client
+            raises before sending an empty one, which `minProperties` encodes.
+            Server-side enforcement was not observed.
+          type: object
+          minProperties: 1
+          additionalProperties:
+            $ref: '#/components/schemas/Question'
+      additionalProperties: true
+
+    Usage:
+      description: |
+        Token usage for the request. Input tokens are billed, output tokens are
+        not.
+
+        The reference marks `usage` itself required but marks neither field
+        required, and the Python SDK types both as optional, "when reported by
+        the API". They are therefore optional here. The JavaScript SDK types both
+        as required numbers.
+      type: object
+      properties:
+        input_tokens:
+          type: integer
+          examples:
+            - 312
+        output_tokens:
+          type: integer
+          examples:
+            - 48
+
+    NoulAnswer:
+      description: The answer to a noul question. It carries no confidence.
+      type: object
+      required:
+        - type
+        - noul
+      properties:
+        type:
+          const: noul
+        noul:
+          description: The yes/no answer, from 0 for no to 1 for yes.
+          type: number
+          minimum: 0
+          maximum: 1
+
+    ChoiceAnswer:
+      description: The answer to a choice question.
+      type: object
+      required:
+        - type
+        - choice
+        - probabilities
+        - confidence
+      properties:
+        type:
+          const: choice
+        choice:
+          description: The highest-probability option, one of the keys of the question's `criteria`.
+          type: string
+        probabilities:
+          description: Every option mapped to its probability. The values sum to 1.
+          type: object
+          additionalProperties:
+            type: number
+            minimum: 0
+            maximum: 1
+        confidence:
+          description: |
+            How concentrated the distribution in `probabilities` is, from 0 to 1.
+          type: number
+          minimum: 0
+          maximum: 1
+
+    ScoreAnswer:
+      description: The answer to a score question.
+      type: object
+      required:
+        - type
+        - score
+        - legend
+        - probabilities
+        - confidence
+      properties:
+        type:
+          const: score
+        score:
+          description: |
+            The probability-weighted position across the levels. It can fall
+            between two levels.
+          type: number
+        legend:
+          description: |
+            Each level index, as a decimal string, mapped back to the description
+            sent in the question's `criteria`.
+
+            The reference types the values as strings. Both SDKs type them as the
+            criteria entries themselves, which may be text, an object, or an
+            array, which is what this schema encodes.
+          type: object
+          propertyNames:
+            pattern: '^[0-9]+$'
+          additionalProperties:
+            $ref: '#/components/schemas/Content'
+        probabilities:
+          description: |
+            Each level index, as a decimal string, mapped to its probability. The
+            values sum to 1.
+          type: object
+          propertyNames:
+            pattern: '^[0-9]+$'
+          additionalProperties:
+            type: number
+            minimum: 0
+            maximum: 1
+        confidence:
+          description: |
+            How concentrated the distribution in `probabilities` is, from 0 to 1.
+          type: number
+          minimum: 0
+          maximum: 1
+
+    Answer:
+      description: |
+        One answer. The `type` field matches the type of the question it answers.
+      oneOf:
+        - $ref: '#/components/schemas/NoulAnswer'
+        - $ref: '#/components/schemas/ChoiceAnswer'
+        - $ref: '#/components/schemas/ScoreAnswer'
+      discriminator:
+        propertyName: type
+        mapping:
+          noul: '#/components/schemas/NoulAnswer'
+          choice: '#/components/schemas/ChoiceAnswer'
+          score: '#/components/schemas/ScoreAnswer'
+
+    SystemOneResponse:
+      description: The body of a successful `POST /v1/systemone` response.
+      type: object
+      required:
+        - model
+        - answers
+        - usage
+      properties:
+        model:
+          description: |
+            The versioned id of the model that performed the evaluation. When the
+            request sent an alias, this reports the version the alias resolved
+            to.
+          type: string
+          examples:
+            - jev-latest
+            - jev-1.13.0
+        answers:
+          description: One answer per question, under the ids sent in `questions`.
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/Answer'
+        usage:
+          $ref: '#/components/schemas/Usage'
+
+    ModelCard:
+      description: One model or alias the account may select.
+      type: object
+      required:
+        - name
+        - description
+        - release_date
+      properties:
+        name:
+          description: The model id or alias, as accepted by the `model` request field.
+          type: string
+        description:
+          description: What the model is for.
+          type: string
+        release_date:
+          description: |
+            When the model or alias was released.
+
+            Unverified: the format is not documented and no response was
+            observed, so no `format` is applied.
+          type: string
+
+    ListModelsResponse:
+      description: |
+        The body of a successful `GET /v1/models` response.
+
+        The Python SDK returns this object with a `models` attribute. The
+        JavaScript SDK unwraps it and returns the array directly.
+      type: object
+      required:
+        - models
+      properties:
+        models:
+          description: One entry per model or alias.
+          type: array
+          items:
+            $ref: '#/components/schemas/ModelCard'
+
+    ErrorResponse:
+      description: |
+        The error envelope used by the API's own error responses. Observed on 401
+        and 403 from both endpoints.
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: object
+          required:
+            - error_type
+            - message
+          properties:
+            error_type:
+              description: |
+                A machine-readable category for the failure.
+
+                Unverified: `authentication_error` is the only value observed,
+                returned for both the missing-key 403 and the rejected-key 401.
+                No list of values appears in the API reference or in either SDK
+                reference, and the SDK exception hierarchies are keyed on the
+                HTTP status rather than on this field, so no enum is encoded.
+              type: string
+              examples:
+                - authentication_error
+            message:
+              description: A human-readable description of the failure.
+              type: string
+
+    FrameworkErrorResponse:
+      description: |
+        The error envelope used by the serving framework for routing failures,
+        where `detail` is a plain string rather than an object. Observed on 404
+        and 405.
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          examples:
+            - Not Found
+            - Method Not Allowed
+
+    ValidationErrorResponse:
+      description: |
+        The body of a 422 response.
+
+        Unverified: no 422 response was observed. Authentication is enforced at
+        the gateway ahead of body validation, so an unauthenticated malformed
+        request is answered with 403 and never reaches validation. The reference
+        states only that "the body details the offending field". Two shapes are
+        allowed here: the API's own `{"detail": {"error_type", "message"}}`
+        envelope, and a `detail` array, which is the default shape of the
+        serving framework whose plain-string `detail` was observed on 404 and
+        405. The entries of that array are left unconstrained, because no
+        evidence of their fields exists.
+      oneOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          required:
+            - detail
+          properties:
+            detail:
+              type: array
+              items: true
+
+  responses:
+    BadRequest:
+      description: |
+        The request was rejected as invalid.
+
+        Unverified: not listed in the reference's status table and not observed.
+        Both SDKs define a dedicated error class for 400, so the status is
+        reachable.
+      headers:
+        x-typesafe-request-id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Unauthorized:
+      description: |
+        The `Authorization` header carried a key the server does not accept.
+        Observed on both endpoints.
+      headers:
+        x-typesafe-request-id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalidKey:
+              summary: Rejected API key
+              description: Observed body of a request carrying an unrecognised bearer token.
+              value:
+                detail:
+                  error_type: authentication_error
+                  message: "Cannot authenticate with the server. Please check your API key and try again."
+
+    Forbidden:
+      description: |
+        The request carried no `Authorization` header. Observed on both
+        endpoints.
+
+        The reference's status table attributes a missing key to 401. That is
+        wrong: a request with no `Authorization` header is answered with 403, and
+        only a request whose key is rejected is answered with 401.
+      headers:
+        x-typesafe-request-id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            missingKey:
+              summary: Missing API key
+              description: Observed body of a request sent with no `Authorization` header.
+              value:
+                detail:
+                  error_type: authentication_error
+                  message: "Must supply an API key! Check your request and try again."
+
+    NotFound:
+      description: |
+        No route matches the path. Observed on an unauthenticated GET to a path
+        that does not exist, which means routing is resolved before
+        authentication. The body uses the plain-string `detail` envelope.
+      headers:
+        x-typesafe-request-id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/FrameworkErrorResponse'
+          examples:
+            notFound:
+              summary: Unknown route
+              value:
+                detail: Not Found
+
+    MethodNotAllowed:
+      description: |
+        The path exists but does not accept the method. Observed on an
+        unauthenticated GET to `/v1/systemone`, which returned `allow: POST`. The
+        body uses the plain-string `detail` envelope.
+      headers:
+        x-typesafe-request-id:
+          $ref: '#/components/headers/RequestId'
+        allow:
+          $ref: '#/components/headers/Allow'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/FrameworkErrorResponse'
+          examples:
+            methodNotAllowed:
+              summary: Wrong method
+              value:
+                detail: Method Not Allowed
+
+    UnprocessableEntity:
+      description: |
+        The request body failed validation, for example a missing required field
+        or a malformed question.
+      headers:
+        x-typesafe-request-id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+
+    TooManyRequests:
+      description: |
+        A rate limit was exceeded. Limits are enforced both in tokens per second
+        and in requests per minute, and either can produce this status. Retry
+        with exponential backoff.
+      headers:
+        x-typesafe-request-id:
+          $ref: '#/components/headers/RequestId'
+        retry-after:
+          $ref: '#/components/headers/RetryAfter'
+        retry-after-ms:
+          $ref: '#/components/headers/RetryAfterMs'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    InternalServerError:
+      description: |
+        The server failed to process the request.
+
+        Unverified: not listed in the reference's status table and not observed.
+        Both SDKs map every 5xx other than the ones named here to a dedicated
+        error class, and both retry the whole 500 to 599 range by default.
+      headers:
+        x-typesafe-request-id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Overloaded:
+      description: |
+        The service is temporarily overloaded. Retry with exponential backoff.
+      headers:
+        x-typesafe-request-id:
+          $ref: '#/components/headers/RequestId'
+        retry-after:
+          $ref: '#/components/headers/RetryAfter'
+        retry-after-ms:
+          $ref: '#/components/headers/RetryAfterMs'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
