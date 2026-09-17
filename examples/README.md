@@ -58,7 +58,7 @@ change described     2.40     3       0.800    0.25         0.200
 test evidence        3.60     4       0.900    0.30         0.270
 risk and rollback    0.80     2       0.400    0.15         0.060
 
-weighted total: 0.763 of 1.000
+weighted total: 0.762 of 1.000
 verdict:        ready for review
 ```
 

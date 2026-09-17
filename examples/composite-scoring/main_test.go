@@ -147,7 +147,7 @@ func TestRunReportsTheBreakdown(t *testing.T) {
 			"test evidence        3.60     4       0.900    0.30         0.270\n" +
 			"risk and rollback    0.80     2       0.400    0.15         0.060\n" +
 			"\n" +
-			"weighted total: 0.763 of 1.000\n" +
+			"weighted total: 0.762 of 1.000\n" +
 			"verdict:        ready for review\n",
 	}, {
 		// Every dimension at its top level puts the composite at 1.

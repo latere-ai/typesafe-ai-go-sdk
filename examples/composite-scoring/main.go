@@ -178,7 +178,11 @@ func run(ctx context.Context, client *typesafe.Client, w io.Writer) error {
 		// Every rubric is normalised by its own top level, which is what lets
 		// a four-level rubric and a three-level one carry comparable weight.
 		normalised := answer.Score / d.top()
-		contribution := d.weight * normalised
+		// The explicit conversion keeps the product a separate rounded value.
+		// Without it the compiler may fuse the multiply into the addition
+		// below on architectures with a fused multiply-add, and the total
+		// would differ between arm64 and amd64 in its last bits.
+		contribution := float64(d.weight * normalised)
 		total += contribution
 		report = append(report, fmt.Sprintf("%-18s %6.2f %5.0f %11.3f %7.2f %13.3f",
 			d.label, answer.Score, d.top(), normalised, d.weight, contribution))
