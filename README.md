@@ -1,5 +1,11 @@
 # typesafe-ai-go-sdk
 
+[![CI](https://github.com/latere-ai/typesafe-ai-go-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/latere-ai/typesafe-ai-go-sdk/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/latere-ai/typesafe-ai-go-sdk.svg)](https://pkg.go.dev/github.com/latere-ai/typesafe-ai-go-sdk)
+[![Release](https://img.shields.io/github/v/release/latere-ai/typesafe-ai-go-sdk)](https://github.com/latere-ai/typesafe-ai-go-sdk/releases)
+[![Go version](https://img.shields.io/github/go-mod/go-version/latere-ai/typesafe-ai-go-sdk)](go.mod)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 Go client for the [TypeSafe API](https://docs.typesafe.ai/api). Unofficial, and
 not published by TypeSafe AI.
 
