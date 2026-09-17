@@ -4,13 +4,14 @@
 # Unofficial OpenAPI description of the TypeSafe AI HTTP API. It is not
 # published by TypeSafe AI. It was derived from the public documentation at
 # https://docs.typesafe.ai (API reference, Python SDK reference, JavaScript SDK
-# reference) and from unauthenticated requests against https://api.typesafe.ai
-# made on 2026-09-17. Where the reference page, the SDK references, and the
-# observed responses disagree, the description follows the observed response
-# first, then the SDK references, then the reference page, and records the
-# disagreement in the affected `description`. Every statement that could not be
-# checked against a response or a documented type is marked "Unverified" in the
-# `description` of the schema, parameter, or response it applies to.
+# reference) and from authenticated and unauthenticated requests against
+# https://api.typesafe.ai made on 2026-09-17. Where the reference page, the SDK
+# references, and the observed responses disagree, the description follows the
+# observed response first, then the SDK references, then the reference page, and
+# records the disagreement in the affected `description`. Every statement that
+# could not be checked against a response or a documented type is marked
+# "Unverified" in the `description` of the schema, parameter, or response it
+# applies to.
 
 openapi: 3.1.0
 
@@ -202,6 +203,41 @@ paths:
                     usage:
                       input_tokens: 312
                       output_tokens: 48
+                observed:
+                  summary: Three questions of different types in one request
+                  description: |
+                    Observed body of an authenticated request that sent
+                    `model: jev-latest`. The response reports the resolved
+                    version, `jev-1.13.0`, rather than the alias that was sent.
+                  value:
+                    model: jev-1.13.0
+                    answers:
+                      is_urgent:
+                        type: noul
+                        noul: 0.95
+                      department:
+                        type: choice
+                        choice: billing
+                        confidence: 0.94
+                        probabilities:
+                          billing: 0.96
+                          sales: 0.0
+                          technical: 0.04
+                      frustration:
+                        type: score
+                        score: 1.03
+                        confidence: 0.95
+                        legend:
+                          "0": "Calm"
+                          "1": "Frustrated"
+                          "2": "Very angry"
+                        probabilities:
+                          "0": 0.0
+                          "1": 0.97
+                          "2": 0.03
+                    usage:
+                      input_tokens: 378
+                      output_tokens: 73
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -232,13 +268,6 @@ paths:
         with a description and a release date. The list contains the aliases
         `jev-latest` and `jev-preview`. Versioned ids such as `jev-1.13.0` are
         accepted by the `model` field whether or not they appear in the list.
-
-        Unverified: the success body has not been observed, because no API key
-        was available. Its shape here is taken from the field list on
-        https://docs.typesafe.ai/models and from the `ListModelsResponse` and
-        `ModelMetadata` types in the Python SDK reference. The route itself is
-        confirmed: an unauthenticated GET returns the authentication error
-        envelope rather than 404.
       responses:
         '200':
           description: The models available to the account.
@@ -249,6 +278,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListModelsResponse'
+              examples:
+                aliases:
+                  summary: The two aliases the endpoint currently returns
+                  description: Observed body of an authenticated request.
+                  value:
+                    models:
+                      - name: jev-latest
+                        description: "The latest iteration of TypeSafe's System One Model: Jev"
+                        release_date: "2026-09-10T18:38:01.391457+00:00"
+                      - name: jev-preview
+                        description: "A preview version of `jev-latest`: should be better in most ways"
+                        release_date: "2026-09-10T18:39:06.057655+00:00"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -298,7 +339,9 @@ components:
         `Retry-After` and `retry-after-ms` are honoured by the default retry
         policy, and the models page states the SDKs honour `retry-after` "when
         the response carries one". No 429 or 529 response was observed, so
-        neither the presence of the header nor its units were confirmed.
+        neither the presence of the header nor its units were confirmed. No
+        rate-limit or quota header of any kind appears on a 200 response, so a
+        client cannot track its remaining budget between failures.
       required: false
       schema:
         type: string
@@ -357,12 +400,15 @@ components:
 
         The model accepts text only. Images, audio and video are not supported.
 
-        Unverified: the JavaScript SDK types `state` as nullable, while the
-        Python SDK states it cannot be null and the reference marks it required.
-        Null is not permitted here, following the reference and the Python SDK.
-        The reference also does not constrain the element type of an array
-        state, although the State concept page describes an array state as "an
-        array of text values", so no item constraint is applied.
+        The field is required and may not be null. Both an absent `state` and an
+        explicit `state: null` are answered with 422 carrying a `missing` entry
+        for `["body", "state"]`, so the JavaScript SDK's nullable typing of this
+        field does not match the server.
+
+        Unverified: the element type of an array state. The reference says only
+        "array", the State concept page describes an array state as "an array of
+        text values", and no array state was sent, so no item constraint is
+        applied.
       type:
         - string
         - object
@@ -398,21 +444,31 @@ components:
       description: |
         The question to evaluate, as text, a JSON object, or an array.
 
-        Unverified: the reference marks `instructions` required on all three
-        question types, while both official SDKs type it as optional and
-        default it to absent. Server-side enforcement was not observed, because
-        no authenticated request could be made. It is encoded as optional here,
-        following the two SDK references. Every example on the reference page
-        sets it.
+        The field is optional on all three question types, which the server
+        confirms and which matches both official SDKs. The reference page marks
+        it required on all three; that is wrong. A noul question is the one case
+        with a further rule: it must carry `instructions`, `criteria`, or both.
       allOf:
         - $ref: '#/components/schemas/Content'
 
     NoulQuestion:
       description: |
         A yes/no question. The answer is the probability that the answer is yes.
+
+        A noul question must carry `instructions`, `criteria`, or both. One with
+        neither is rejected with 400 and the plain-string body
+        `Noul question must have criteria or instructions: <question id>`.
+
+        Unverified: whether an explicit `criteria: null` satisfies that rule. The
+        `anyOf` here tests only for the presence of the property.
       type: object
       required:
         - type
+      anyOf:
+        - required:
+            - instructions
+        - required:
+            - criteria
       properties:
         type:
           const: noul
@@ -445,9 +501,15 @@ components:
             are the option labels, and the answer's `choice` and the keys of its
             `probabilities` are drawn from them.
 
-            Unverified: no minimum or maximum option count is documented, so
+            At least one option is required. An empty map is rejected with 400
+            and the plain-string body
+            `Choice question must have at least one choice: <question id>`. A
+            single option is accepted. A null description is accepted.
+
+            Unverified: no maximum option count is documented or observed, so
             none is encoded.
           type: object
+          minProperties: 1
           additionalProperties:
             $ref: '#/components/schemas/ContentOrNull'
 
@@ -471,18 +533,20 @@ components:
             entry is the score it stands for, and the answer's `legend` maps
             those indices back to these descriptions.
 
-            The reference and the JavaScript SDK both require at least two
-            levels, which is what `minItems` encodes. The Python SDK reference
-            describes the list as "nonempty" and its client raises only when the
-            list is empty, so a one-level question may reach the server through
-            that SDK.
+            `minItems` encodes the server rule, which is one level: a one-level
+            question is accepted and answers with `score` 0.0 and a single-entry
+            legend, while an empty array is rejected with 422 carrying a
+            `too_short` entry whose `min_length` is 1. The reference page and the
+            JavaScript SDK both call for at least two levels, and a rubric with
+            one level cannot discriminate, so two is the useful minimum even
+            though the server does not enforce it.
 
             Entries are not restricted to strings: both SDKs type each entry as
-            text, an object, or an array. Unverified: the JavaScript SDK also
-            permits null for an undescribed level, which the Python SDK does not,
-            so null is not permitted here.
+            text, an object, or an array, and the server rejects a null level
+            with 422, so `null` is not permitted despite the JavaScript SDK
+            typing it.
           type: array
-          minItems: 2
+          minItems: 1
           items:
             $ref: '#/components/schemas/Content'
 
@@ -490,9 +554,15 @@ components:
       description: |
         One typed question. The `type` field selects the shape.
 
-        Unverified: both SDKs describe question objects as carrying arbitrary
-        extra JSON fields, so unknown properties are not rejected here. Whether
-        the server ignores or rejects them was not observed.
+        Unknown properties are ignored by the server, so they are not rejected
+        here. This matches both SDKs, which describe question objects as
+        carrying arbitrary extra JSON fields.
+
+        An unrecognised `type` is rejected with 422 carrying a
+        `union_tag_invalid` entry whose `ctx.expected_tags` lists the types the
+        server accepts. That list contains one further type beyond the three
+        documented here. It is not modelled, because nothing in the public
+        documentation describes its request or answer shape.
       oneOf:
         - $ref: '#/components/schemas/NoulQuestion'
         - $ref: '#/components/schemas/ChoiceQuestion'
@@ -505,7 +575,12 @@ components:
           score: '#/components/schemas/ScoreQuestion'
 
     SystemOneRequest:
-      description: The body of a `POST /v1/systemone` request.
+      description: |
+        The body of a `POST /v1/systemone` request.
+
+        Unknown top-level fields are ignored by the server. The Python SDK
+        exposes this through `extra_body`, which is shallow-merged over the body
+        last-write-wins after `state`, `model`, and `questions` are set.
       type: object
       required:
         - state
@@ -520,6 +595,10 @@ components:
             `jev-1.13.0` or an alias such as `jev-latest` or `jev-preview`. The
             official SDKs default it to `jev-latest` and allow that default to be
             changed with the `TYPESAFE_DEFAULT_MODEL` environment variable.
+
+            A name the server does not know is rejected with 400 and the body
+            `{"detail": {"error_type": "api_usage_error", "message": "Unknown
+            model: <name>"}}`. A missing `model` is rejected with 422.
           type: string
           examples:
             - jev-latest
@@ -530,9 +609,9 @@ components:
             ids key the answers in the response. A question id is not sent to the
             underlying model and takes no part in inference.
 
-            Unverified: both SDKs require a nonempty map and the Python client
-            raises before sending an empty one, which `minProperties` encodes.
-            Server-side enforcement was not observed.
+            At least one question is required. An empty map is rejected with 422
+            carrying a `too_short` entry for `["body", "questions"]` whose
+            `ctx.min_length` is 1.
           type: object
           minProperties: 1
           additionalProperties:
@@ -546,8 +625,9 @@ components:
 
         The reference marks `usage` itself required but marks neither field
         required, and the Python SDK types both as optional, "when reported by
-        the API". They are therefore optional here. The JavaScript SDK types both
-        as required numbers.
+        the API". They are therefore optional here, although both were present on
+        every observed response. The JavaScript SDK types both as required
+        numbers.
       type: object
       properties:
         input_tokens:
@@ -676,10 +756,10 @@ components:
           description: |
             The versioned id of the model that performed the evaluation. When the
             request sent an alias, this reports the version the alias resolved
-            to.
+            to: a request for `jev-latest` was answered with `jev-1.13.0`. Log
+            this field rather than the value sent, because an alias moves.
           type: string
           examples:
-            - jev-latest
             - jev-1.13.0
         answers:
           description: One answer per question, under the ids sent in `questions`.
@@ -705,11 +785,12 @@ components:
           type: string
         release_date:
           description: |
-            When the model or alias was released.
-
-            Unverified: the format is not documented and no response was
-            observed, so no `format` is applied.
+            When the model or alias was released, as an RFC 3339 timestamp with a
+            microsecond fraction and an explicit UTC offset.
           type: string
+          format: date-time
+          examples:
+            - "2026-09-10T18:38:01.391457+00:00"
 
     ListModelsResponse:
       description: |
@@ -729,8 +810,13 @@ components:
 
     ErrorResponse:
       description: |
-        The error envelope used by the API's own error responses. Observed on 401
-        and 403 from both endpoints.
+        The error envelope whose `detail` is an object. Observed on 401 and 403
+        from both endpoints, and on some 400 responses.
+
+        Error bodies come in three shapes and a client must handle all three:
+        this one, `StringDetailErrorResponse` where `detail` is a plain string,
+        and `ValidationErrorResponse` where `detail` is an array. A 400 may use
+        either of the first two.
       type: object
       required:
         - detail
@@ -743,25 +829,32 @@ components:
           properties:
             error_type:
               description: |
-                A machine-readable category for the failure.
+                A machine-readable category for the failure. Two values have been
+                observed: `authentication_error`, returned for both the
+                missing-key 403 and the rejected-key 401, and `api_usage_error`,
+                returned for a 400 caused by an unknown model name or by a body
+                that is not valid JSON.
 
-                Unverified: `authentication_error` is the only value observed,
-                returned for both the missing-key 403 and the rejected-key 401.
-                No list of values appears in the API reference or in either SDK
-                reference, and the SDK exception hierarchies are keyed on the
-                HTTP status rather than on this field, so no enum is encoded.
+                Unverified: the complete set of values. No list appears in the API
+                reference or in either SDK reference, and both SDK exception
+                hierarchies branch on the HTTP status rather than on this field,
+                so no enum is encoded. Treat it as an open string.
               type: string
               examples:
                 - authentication_error
+                - api_usage_error
             message:
               description: A human-readable description of the failure.
               type: string
 
-    FrameworkErrorResponse:
+    StringDetailErrorResponse:
       description: |
-        The error envelope used by the serving framework for routing failures,
-        where `detail` is a plain string rather than an object. Observed on 404
-        and 405.
+        The error envelope whose `detail` is a plain string. Observed on 404 and
+        405, which the serving framework produces before the request reaches the
+        application, and on the 400 responses that report a question the
+        application rejects. The string carries the offending question id in the
+        cases observed so far, but it has no documented structure and should be
+        treated as free text.
       type: object
       required:
         - detail
@@ -771,45 +864,118 @@ components:
           examples:
             - Not Found
             - Method Not Allowed
+            - "Noul question must have criteria or instructions: q"
+            - "Choice question must have at least one choice: q"
+
+    ValidationError:
+      description: |
+        One validation failure. The shape is the one produced by the request
+        validation layer of the serving framework.
+      type: object
+      required:
+        - type
+        - loc
+        - msg
+      properties:
+        type:
+          description: |
+            The validation rule that failed. Observed values are `missing` for an
+            absent or null required field, `too_short` for an empty `questions`
+            map or an empty score `criteria` array, and `union_tag_invalid` for
+            an unrecognised question `type`.
+          type: string
+          examples:
+            - missing
+            - too_short
+            - union_tag_invalid
+        loc:
+          description: |
+            The path to the offending value, starting with `body`. Array indices
+            appear as integers and object keys as strings, so a failure inside a
+            named question reads `["body", "questions", "<question id>"]`.
+          type: array
+          items:
+            type:
+              - string
+              - integer
+        msg:
+          description: A human-readable description of the failure.
+          type: string
+          examples:
+            - Field required
+            - "Dictionary should have at least 1 item after validation, not 0"
+        input:
+          description: |
+            The value that failed validation. For a `missing` entry this is the
+            whole request body that lacked the field.
+        ctx:
+          description: |
+            Rule-specific context. A `too_short` entry carries `field_type`,
+            `min_length`, and `actual_length`. A `union_tag_invalid` entry
+            carries `discriminator`, `tag`, and `expected_tags`, where
+            `expected_tags` lists the question types the server accepts.
+          type: object
 
     ValidationErrorResponse:
       description: |
-        The body of a 422 response.
+        The body of a 422 response. `detail` is an array with one entry per
+        failure.
 
-        Unverified: no 422 response was observed. Authentication is enforced at
-        the gateway ahead of body validation, so an unauthenticated malformed
-        request is answered with 403 and never reaches validation. The reference
-        states only that "the body details the offending field". Two shapes are
-        allowed here: the API's own `{"detail": {"error_type", "message"}}`
-        envelope, and a `detail` array, which is the default shape of the
-        serving framework whose plain-string `detail` was observed on 404 and
-        405. The entries of that array are left unconstrained, because no
-        evidence of their fields exists.
-      oneOf:
-        - $ref: '#/components/schemas/ErrorResponse'
-        - type: object
-          required:
-            - detail
-          properties:
-            detail:
-              type: array
-              items: true
+        Reaching a 422 requires a valid API key, because authentication is
+        enforced at the gateway ahead of body validation: an unauthenticated
+        request with a malformed body is answered with 403 and never reaches
+        validation.
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationError'
 
   responses:
     BadRequest:
       description: |
-        The request was rejected as invalid.
+        The request was rejected as invalid. This status covers failures the
+        application detects after the body has parsed and validated: an unknown
+        model name, a body that is not valid JSON, and a question that is
+        structurally valid but unusable.
 
-        Unverified: not listed in the reference's status table and not observed.
-        Both SDKs define a dedicated error class for 400, so the status is
-        reachable.
+        The body takes either envelope. Model and JSON failures use the object
+        `detail` with `error_type: api_usage_error`; question failures use the
+        plain-string `detail`. The reference's status table does not list 400,
+        but both SDKs define an error class for it.
       headers:
         x-typesafe-request-id:
           $ref: '#/components/headers/RequestId'
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            oneOf:
+              - $ref: '#/components/schemas/ErrorResponse'
+              - $ref: '#/components/schemas/StringDetailErrorResponse'
+          examples:
+            unknownModel:
+              summary: A model name the server does not know
+              value:
+                detail:
+                  error_type: api_usage_error
+                  message: "Unknown model: nope"
+            malformedJson:
+              summary: A body that is not valid JSON
+              value:
+                detail:
+                  error_type: api_usage_error
+                  message: "Request contains invalid JSON."
+            noulWithoutInstructionsOrCriteria:
+              summary: A noul question carrying neither instructions nor criteria
+              value:
+                detail: "Noul question must have criteria or instructions: q"
+            choiceWithoutOptions:
+              summary: A choice question whose criteria map is empty
+              value:
+                detail: "Choice question must have at least one choice: q"
 
     Unauthorized:
       description: |
@@ -866,7 +1032,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/FrameworkErrorResponse'
+            $ref: '#/components/schemas/StringDetailErrorResponse'
           examples:
             notFound:
               summary: Unknown route
@@ -886,7 +1052,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/FrameworkErrorResponse'
+            $ref: '#/components/schemas/StringDetailErrorResponse'
           examples:
             methodNotAllowed:
               summary: Wrong method
@@ -895,8 +1061,14 @@ components:
 
     UnprocessableEntity:
       description: |
-        The request body failed validation, for example a missing required field
-        or a malformed question.
+        The request body parsed but failed validation: a required field is
+        absent or null, a collection is empty, or a question carries an
+        unrecognised `type`.
+
+        An unrecognised `type` produces a `union_tag_invalid` entry at
+        `["body", "questions", "<question id>"]` whose `ctx` carries
+        `discriminator`, `tag`, and `expected_tags`. No example of it is given
+        here, because the exact `msg` and `ctx` values were not recorded.
       headers:
         x-typesafe-request-id:
           $ref: '#/components/headers/RequestId'
@@ -904,6 +1076,34 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ValidationErrorResponse'
+          examples:
+            missingState:
+              summary: The body has no state
+              description: |
+                The same entry is returned for an explicit `state: null` and for
+                a missing `model`, with `loc` naming the field in question. The
+                observed response also carried `input` holding the submitted
+                body; it is left out here rather than reproduced from memory.
+              value:
+                detail:
+                  - type: missing
+                    loc:
+                      - body
+                      - state
+                    msg: Field required
+            emptyQuestions:
+              summary: The questions map is empty
+              value:
+                detail:
+                  - type: too_short
+                    loc:
+                      - body
+                      - questions
+                    msg: "Dictionary should have at least 1 item after validation, not 0"
+                    ctx:
+                      field_type: Dictionary
+                      min_length: 1
+                      actual_length: 0
 
     TooManyRequests:
       description: |
