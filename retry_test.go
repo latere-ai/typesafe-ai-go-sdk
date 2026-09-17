@@ -6,6 +6,7 @@ package typesafe
 import (
 	"context"
 	"errors"
+	"math"
 	"net/http"
 	"testing"
 	"time"
@@ -243,6 +244,22 @@ func TestRetryAfter(t *testing.T) {
 			header: http.Header{"Retry-After": {"Thu, 17 Sep 2026 11:59:00 GMT"}},
 			want:   0,
 			ok:     true,
+		},
+		{
+			name:   "milliseconds beyond the duration range saturate",
+			header: http.Header{"Retry-After-Ms": {"1e300"}},
+			want:   math.MaxInt64,
+			ok:     true,
+		},
+		{
+			name:   "infinite seconds saturate",
+			header: http.Header{"Retry-After": {"+Inf"}},
+			want:   math.MaxInt64,
+			ok:     true,
+		},
+		{
+			name:   "not a number is ignored",
+			header: http.Header{"Retry-After-Ms": {"NaN"}, "Retry-After": {"NaN"}},
 		},
 		{
 			name:   "an unparseable value is ignored",

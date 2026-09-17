@@ -5,6 +5,7 @@ package typesafe
 
 import (
 	"context"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -135,8 +136,10 @@ func retryableStatus(status int) bool {
 // backoff in place.
 func retryAfter(header http.Header, now time.Time) (time.Duration, bool) {
 	if value := strings.TrimSpace(header.Get("retry-after-ms")); value != "" {
-		if ms, err := strconv.ParseFloat(value, 64); err == nil && ms >= 0 {
-			return time.Duration(ms * float64(time.Millisecond)), true
+		if ms, err := strconv.ParseFloat(value, 64); err == nil {
+			if d, ok := scaleDuration(ms, time.Millisecond); ok {
+				return d, true
+			}
 		}
 	}
 	value := strings.TrimSpace(header.Get("Retry-After"))
@@ -144,15 +147,27 @@ func retryAfter(header http.Header, now time.Time) (time.Duration, bool) {
 		return 0, false
 	}
 	if seconds, err := strconv.ParseFloat(value, 64); err == nil {
-		if seconds < 0 {
-			return 0, false
-		}
-		return time.Duration(seconds * float64(time.Second)), true
+		return scaleDuration(seconds, time.Second)
 	}
 	if deadline, err := http.ParseTime(value); err == nil {
 		return max(deadline.Sub(now), 0), true
 	}
 	return 0, false
+}
+
+// scaleDuration converts a count of unit into a duration. A negative count or
+// NaN reports false. A count beyond the duration range saturates at the
+// largest duration, because converting an out-of-range float to an integer is
+// implementation-defined and yields a negative wait on some platforms.
+func scaleDuration(count float64, unit time.Duration) (time.Duration, bool) {
+	if math.IsNaN(count) || count < 0 {
+		return 0, false
+	}
+	scaled := count * float64(unit)
+	if scaled >= math.MaxInt64 {
+		return math.MaxInt64, true
+	}
+	return time.Duration(scaled), true
 }
 
 // sleepContext waits for d, or until ctx ends, whichever comes first. It is
