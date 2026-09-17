@@ -62,11 +62,10 @@ func (e *APIError) Error() string {
 
 // Temporary reports whether the same request may succeed if it is sent again.
 // It is true for a request timeout, a rate limit and every server-side
-// failure, which is the set the client retries on its own.
+// failure. It answers from the same predicate the retry loop uses, so what a
+// caller is told is retryable is what the client retries.
 func (e *APIError) Temporary() bool {
-	return e.StatusCode == http.StatusRequestTimeout ||
-		e.StatusCode == http.StatusTooManyRequests ||
-		e.StatusCode >= http.StatusInternalServerError
+	return retryableStatus(e.StatusCode)
 }
 
 // newAPIError builds an APIError from one failure response.

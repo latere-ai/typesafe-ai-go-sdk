@@ -117,10 +117,23 @@ func TestNewAPIErrorFixtures(t *testing.T) {
 			wantMessage: "Unknown model: nope",
 		},
 		{
+			name:        "bad request object envelope for a malformed body",
+			file:        "error_bad_request_json.json",
+			status:      http.StatusBadRequest,
+			wantType:    "api_usage_error",
+			wantMessage: "Request contains invalid JSON.",
+		},
+		{
 			name:        "bad request bare string",
 			file:        "error_bad_request_string.json",
 			status:      http.StatusBadRequest,
 			wantMessage: "Noul question must have criteria or instructions: q",
+		},
+		{
+			name:        "bad request bare string for a choice with no options",
+			file:        "error_bad_request_choice.json",
+			status:      http.StatusBadRequest,
+			wantMessage: "Choice question must have at least one choice: q",
 		},
 		{
 			name:        "validation array",
