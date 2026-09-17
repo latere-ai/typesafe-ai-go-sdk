@@ -1,0 +1,16 @@
+name: ci
+
+# Every gate lives in lateregate, pinned in go.mod. The reusable workflow
+# asks the binary which gates apply and runs one job per gate.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    uses: latere-ai/ci/.github/workflows/lateregate.yml@v1

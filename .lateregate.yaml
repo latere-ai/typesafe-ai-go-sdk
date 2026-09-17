@@ -1,0 +1,23 @@
+# The per-push gate configuration. Every check runs from latere.ai/x/ci-gate,
+# pinned in go.mod, so each one runs the same on a laptop as on a runner.
+
+cover:
+  trim_prefix: github.com/latere-ai/typesafe-ai-go-sdk/
+  exempt: {}
+
+depcheck:
+  # The client imports the standard library only. Any module is a violation.
+  packages:
+    github.com/latere-ai/typesafe-ai-go-sdk:
+      decision: sdk-stdlib-only
+      allow: {}
+
+license:
+  spdx: Apache-2.0
+  holder: Latere AI
+  extensions: ['.go']
+  names: [Makefile]
+
+# This repository verifies no token and mints none.
+identity:
+  role: none

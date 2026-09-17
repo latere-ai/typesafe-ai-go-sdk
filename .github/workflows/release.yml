@@ -1,0 +1,18 @@
+name: release
+
+# A tag is a release, and a release has notes. The shared pipeline reads the
+# CHANGELOG.md section for the tag with lateregate, refuses the tag when
+# there is none, and otherwise publishes the GitHub release with that
+# section as the body.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    uses: latere-ai/ci/.github/workflows/notes-release.yml@v1
+    secrets: inherit
