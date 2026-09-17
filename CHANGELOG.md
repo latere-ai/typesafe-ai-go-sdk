@@ -10,6 +10,8 @@ committed: the commit log already holds that.
 
 ## Unreleased
 
+## v0.1.0 - 2026-09-17
+
 First working client. It speaks the TypeSafe evaluation API from Go with no
 dependencies beyond the standard library.
 
